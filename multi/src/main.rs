@@ -18,19 +18,32 @@ fn main() { unsafe {
     ).unwrap();
 
     let args = vec![
-        "%s\n%s\n%s\n%s\n%s\n%s\n\0".as_ptr() as usize,
+"
+%s
+%s
+%s
+%s
+%s
+%s
+%s
+%s
+\0".as_ptr() as usize,
         "1\0".as_ptr() as usize,
         "2\0".as_ptr() as usize,
         "3\0".as_ptr() as usize,
         "4\0".as_ptr() as usize,
         "5\0".as_ptr() as usize,
         "6\0".as_ptr() as usize,
+        "7\0".as_ptr() as usize,
+        "8\0".as_ptr() as usize,
     ];
 
-    call(sym_ptr, args);
+    let ret = call(sym_ptr, args);
+    println!("ret: {}", ret);
 }}
 
 unsafe fn call(fn_ptr: *mut (), args: Vec<usize>) -> usize {
+    let exit = std::process::exit as *const ();
     let result;
 
     match args.len() {
@@ -97,43 +110,42 @@ unsafe fn call(fn_ptr: *mut (), args: Vec<usize>) -> usize {
             out("rax") result,
             clobber_abi("C"),
         ),
-        7 => asm!(
-            "push {1}",
-            "xor rax, rax",
-            "call {0}",
-            in(reg) fn_ptr,
-            in(reg) args[6],
-            in("rdi") args[0],
-            in("rsi") args[1],
-            in("rdx") args[2],
-            in("rcx") args[3],
-            in("r8") args[4],
-            in("r9") args[5],
-            out("rax") result,
-            clobber_abi("C"),
-        ),
         len => {
+            let arr = args.into_boxed_slice();
+
             asm!(
+                "push rbp",
+                "mov rbp, rsp",
+
+                "mov rax, {0}",
                 "2:",
-                "cmp {0}, 5",
+                "cmp rax, 5",
                 "jle 2f",
-                "add {1}, {0}",
-                "push [{1}]",
-                "sub {1}, {0}",
-                "add {0}, 1",
+                "mov r15, rax",
+                "shl r15, 3",
+                "add r15, {1}",
+
+                "push [r15]",
+                "sub rax, 1",
                 "jmp 2b",
+
                 "2:",
                 "xor rax, rax",
                 "call {2}",
-                in(reg) len,
-                in(reg) args.as_ptr(),
+
+                "mov rsp, rbp",
+                "pop rbp",
+
+                in(reg) len - 1,
+                in(reg) arr.as_ptr(),
                 in(reg) fn_ptr,
-                in("rdi") args[0],
-                in("rsi") args[1],
-                in("rdx") args[2],
-                in("rcx") args[3],
-                in("r8") args[4],
-                in("r9") args[5],
+                in("rdi") arr[0],
+                in("rsi") arr[1],
+                in("rdx") arr[2],
+                in("rcx") arr[3],
+                in("r8") arr[4],
+                in("r9") arr[5],
+                in("r14") exit,
                 out("rax") result,
                 clobber_abi("C"),
             );
